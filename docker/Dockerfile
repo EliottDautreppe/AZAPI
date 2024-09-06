@@ -1,43 +1,27 @@
-# Use the latest slim version of Debian
-FROM --platform=$TARGETPLATFORM debian:bookworm-slim
+# Build stage
+FROM python:3.8-slim-buster AS build
 
-# Set ARG for platform-specific commands
-ARG TARGETPLATFORM
+# Set the working directory
+WORKDIR /app
 
-# Update and install necessary packages
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-venv \
-    nodejs \
-    npm \
-    openssh-server \
-    sudo \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the application files
+COPY . .
 
-# Set up SSH
-RUN mkdir /var/run/sshd && \
-    echo 'root:toor' | chpasswd && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+# Install the dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Create and activate Python virtual environment
-ENV VIRTUAL_ENV=/opt/venv
-RUN python3 -m venv $VIRTUAL_ENV
+# Runtime stage
+FROM python:3.8-slim-buster
 
-# Copy initial .bashrc with virtual environment activation to a temporary location
-COPY .bashrc /etc/skel/.bashrc
+# Set the working directory
+WORKDIR /app
 
-# Copy the script to ensure .bashrc is in the root directory
-COPY initialize.sh /usr/local/bin/initialize.sh
-RUN chmod +x /usr/local/bin/initialize.sh
+# Copy the application files from the build stage
+COPY --from=build /app .
 
-# Ensure the virtual environment and pip setup
-RUN $VIRTUAL_ENV/bin/pip install --upgrade pip
-
-# Expose SSH port
+# Expose the SSH port
 EXPOSE 22
 
-# Init .bashrc
-CMD ["/usr/local/bin/initialize.sh"]
-
+# Run the application
+CMD ["python", "run_ui.py"]
 
